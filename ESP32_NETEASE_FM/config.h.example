@@ -1,0 +1,5 @@
+#define URL_PREFIX ""
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
+#define LOGIN_PHONE ""
+#define LOGIN_PASSWORD ""
