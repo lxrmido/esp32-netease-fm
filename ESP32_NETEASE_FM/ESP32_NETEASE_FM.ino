@@ -16,17 +16,21 @@ const char* login_phone = LOGIN_PHONE;
 const char* login_password =  LOGIN_PASSWORD;
 
 const int nextButton = 13;
+const int pauseButton = 35;
+
+bool playing = false;
 
 char token[256];
 int musicId;
 char musicUrl[1024];
+char requestUrl[256];
 
 AudioGeneratorMP3 *mp3;
 AudioFileSourceHTTPStream *file;
 AudioFileSourceBuffer *buff;
 AudioOutputI2S *out;
 
-bool buttonClicked = 0;
+int buttonClicked = 0;
 
 void IRAM_ATTR nextButtonInterrupt() {
   static unsigned long last_interrupt_time = 0;
@@ -38,12 +42,32 @@ void IRAM_ATTR nextButtonInterrupt() {
   }
   last_interrupt_time = interrupt_time;
 }
+void IRAM_ATTR pauseButtonInterrupt() {
+  static unsigned long last_interrupt_time = 0;
+  unsigned long interrupt_time = millis();
+  if (interrupt_time - last_interrupt_time > 200) 
+  {
+    Serial.println("Pause Clicked");
+    buttonClicked = 2;
+  }
+  last_interrupt_time = interrupt_time;
+}
+
+const int preallocateBufferSize = 16*1024;
+const int preallocateCodecSize = 85332;
+void *preallocateBuffer = NULL;
+void *preallocateCodec = NULL;
 
 void setup() {
   Serial.begin(115200);
   delay(500);
+  preallocateBuffer = malloc(preallocateBufferSize);
+  preallocateCodec = malloc(preallocateCodecSize);
+  out = new AudioOutputI2S();
   pinMode(nextButton, INPUT_PULLUP);
+  pinMode(pauseButton, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(nextButton), nextButtonInterrupt, FALLING);
+  attachInterrupt(digitalPinToInterrupt(pauseButton), pauseButtonInterrupt, FALLING);
   // Connect to WiFi network
   Serial.println();
   Serial.println();
@@ -69,9 +93,8 @@ void setup() {
 bool login(){
   while (true){
     HTTPClient http;
-    char url[128];
-    sprintf(url, "%s/login/cellphone?phone=%s&password=%s", url_prefix, login_phone, login_password);
-    http.begin(url);
+    sprintf(requestUrl, "%s/login/cellphone?phone=%s&password=%s", url_prefix, login_phone, login_password);
+    http.begin(requestUrl);
     http.addHeader("Content-Type", "application/json");
     int httpCode = http.GET();
     String payload = http.getString();
@@ -88,6 +111,7 @@ bool login(){
       if (!root.success()) {
         Serial.println("JSON parsing failed!");
         delay(1000);
+        continue;
       }
       strcpy(token, root["token"]);
       Serial.print("Token:");
@@ -103,9 +127,8 @@ bool login(){
 bool getMusic(){
   while (true){
     HTTPClient http;
-    char url[128];
-    sprintf(url, "%s/personal_fm?t=%d", url_prefix, random(1, 100000));
-    http.begin(url);
+    sprintf(requestUrl, "%s/personal_fm?t=%d", url_prefix, random(1, 100000));
+    http.begin(requestUrl);
     http.addHeader("Content-Type", "application/json");
     int httpCode = http.GET();
     String payload = http.getString();
@@ -122,13 +145,14 @@ bool getMusic(){
       if (!root.success()) {
         Serial.println("JSON parsing failed!");
         delay(1000);
+      } else {
+        musicId = root["data"][0]["id"];
+        Serial.print("id:");
+        Serial.println(musicId);
+        char musicIdStr[32];
+        sprintf(musicIdStr, "ID:%d", musicId);
+        return true;
       }
-      musicId = root["data"][0]["id"];
-      Serial.print("id:");
-      Serial.println(musicId);
-      char musicIdStr[32];
-      sprintf(musicIdStr, "ID:%d", musicId);
-      return true;
     }else{
       Serial.println("personal_fm failed");
       delay(1000);
@@ -140,9 +164,8 @@ bool getMusic(){
 bool getMusicUrl(){
   while (true){
     HTTPClient http;
-    char url[1024];
-    sprintf(url, "%s/song/url?br=320000&id=%d", url_prefix, musicId);
-    http.begin(url);
+    sprintf(requestUrl, "%s/song/url?br=320000&id=%d", url_prefix, musicId);
+    http.begin(requestUrl);
     http.addHeader("Content-Type", "application/json");
     int httpCode = http.GET();
     String payload = http.getString();
@@ -159,50 +182,71 @@ bool getMusicUrl(){
       if (!root.success()) {
         Serial.println("JSON parsing failed!");
         delay(1000);
+      } else {
+        strcpy(musicUrl, root["data"][0]["url"]);
+        Serial.print("url:");
+        Serial.println(musicUrl);
+        return true;
       }
-      strcpy(musicUrl, root["data"][0]["url"]);
-      Serial.print("url:");
-      Serial.println(musicUrl);
-      return true;
     }else{
       Serial.println("song/url failed");
       delay(1000);
+      continue;
     }
   }
 }
 
 bool playMusic(){
-  file = new AudioFileSourceHTTPStream(musicUrl);
-  buff = new AudioFileSourceBuffer(file, 384*1024);
-  out = new AudioOutputI2S(0, 1);
-  mp3 = new AudioGeneratorMP3();
-  mp3->begin(buff, out);
-}
-
-void stopPlaying(){
+  if (mp3) {
+    //Serial.println("Stop decode.");
+    //mp3->stop();
+    //delete mp3;
+    //mp3 = NULL;
+  }
   if (buff) {
-    buff->close();
-    delete buff;
-    buff = NULL;
+    //Serial.println("Close buff");
+    //buff->close();
+    //delete buff;
+    //buff = NULL;
   }
   if (file) {
-    file->close();
-    delete file;
-    file = NULL;
+    //Serial.println("Close file");
+    //file->close();
+    //delete file;
+    //file = NULL;
   }
-  if (mp3 && mp3->isRunning()) {
-      mp3->stop();
-  }
+  Serial.println("Start new");
+  file = new AudioFileSourceHTTPStream(musicUrl);
+  buff = new AudioFileSourceBuffer(file, preallocateBuffer, preallocateBufferSize);
+  
+  mp3 = new AudioGeneratorMP3(preallocateCodec, preallocateCodecSize);
+  mp3->begin(buff, out);
+  playing = true;
+  out->SetGain(1.0);
 }
+
+bool next() {
+  out->SetGain(0.01);
+  out->stop();
+  getMusic() && getMusicUrl() && playMusic();
+}
+
  
 void loop() {
-  if (buttonClicked > 0) {
+  if (buttonClicked == 1) {
     Serial.println("Next needed.");
-    stopPlaying();
-    Serial.println("Next.");
-    getMusic() && getMusicUrl() && playMusic();
+    next();
     buttonClicked = 0;
-  } else {
+  } else if (buttonClicked == 2) {
+    Serial.println("Pause/Play");
+    if (playing) {
+      out->stop(); 
+    } else {
+      out->begin();
+    }
+    playing = !playing;
+    buttonClicked = 0;
+  }else {
     if (mp3->isRunning()) {
       if (!mp3->loop()) {
         mp3->stop();
