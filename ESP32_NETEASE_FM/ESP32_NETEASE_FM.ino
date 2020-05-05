@@ -113,9 +113,9 @@ void like(){
   out->SetGain(0.01);
   sprintf(requestUrl, "%s/like?id=%d&t=%d", url_prefix, musicId, random(1, 100000));
   http.collectHeaders(headerkeys, headerkeyssize);
-  http.addHeader("Cookie", cookie);
   http.begin(requestUrl);
   http.addHeader("Content-Type", "application/json");
+  http.addHeader("Cookie", cookie);
   int httpCode = http.GET();
   String payload = http.getString();
   Serial.print("HTTP Status:");
@@ -124,8 +124,6 @@ void like(){
   Serial.println(payload);
   http.end();
   if(httpCode == 200){
-    strcpy(cookie, http.header("set-cookie").c_str());
-    Serial.println(cookie);
     Serial.println("liked");
   }else{
     Serial.println("like failed");
@@ -174,10 +172,10 @@ bool getMusic(){
   while (true){
     HTTPClient http;
     sprintf(requestUrl, "%s/personal_fm?t=%d", url_prefix, random(1, 100000));
-    http.addHeader("Cookie", cookie);
     http.collectHeaders(headerkeys, headerkeyssize);
     http.begin(requestUrl);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("Cookie", cookie);
     int httpCode = http.GET();
     String payload = http.getString();
     Serial.print("HTTP Status:");
@@ -186,8 +184,6 @@ bool getMusic(){
     Serial.println(payload);
     http.end();
     if(httpCode == 200){
-      strcpy(cookie, http.header("set-cookie").c_str());
-      Serial.println(cookie);
       Serial.println("Get music success");
       const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(8) + 370;
       DynamicJsonBuffer jsonBuffer(bufferSize);
@@ -215,10 +211,10 @@ bool getMusicUrl(){
   while (true){
     HTTPClient http;
     sprintf(requestUrl, "%s/song/url?br=320000&id=%d", url_prefix, musicId);
-    http.addHeader("Cookie", cookie);
     http.collectHeaders(headerkeys, headerkeyssize);
     http.begin(requestUrl);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("Cookie", cookie);
     int httpCode = http.GET();
     String payload = http.getString();
     Serial.print("HTTP Status:");
@@ -227,8 +223,6 @@ bool getMusicUrl(){
     Serial.println(payload);
     http.end();
     if(httpCode == 200){
-      strcpy(cookie, http.header("set-cookie").c_str());
-      Serial.println(cookie);
       Serial.println("Get url success");
       const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(8) + 370;
       DynamicJsonBuffer jsonBuffer(bufferSize);
