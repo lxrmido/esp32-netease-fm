@@ -105,7 +105,7 @@ void setup() {
   Serial.print(WiFi.localIP());
   Serial.println("/");
 
-  login() && getMusic() && getMusicUrl() && playMusic();
+  login() && getMusicAndUrl() && playMusic();
 }
 
 void like(){
@@ -168,79 +168,96 @@ bool login(){
   }
 }
 
-bool getMusic(){
-  while (true){
-    HTTPClient http;
-    sprintf(requestUrl, "%s/personal_fm?t=%d", url_prefix, random(1, 100000));
-    http.collectHeaders(headerkeys, headerkeyssize);
-    http.begin(requestUrl);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Cookie", cookie);
-    int httpCode = http.GET();
-    String payload = http.getString();
-    Serial.print("HTTP Status:");
-    Serial.println(httpCode);
-    Serial.print("HTTP payload:");
-    Serial.println(payload);
-    http.end();
-    if(httpCode == 200){
-      Serial.println("Get music success");
-      const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(8) + 370;
-      DynamicJsonBuffer jsonBuffer(bufferSize);
-      JsonObject& root = jsonBuffer.parseObject(payload);
-      if (!root.success()) {
-        Serial.println("JSON parsing failed!");
-        delay(1000);
-      } else {
-        musicId = root["data"][0]["id"];
-        Serial.print("id:");
-        Serial.println(musicId);
-        char musicIdStr[32];
-        sprintf(musicIdStr, "ID:%d", musicId);
-        return true;
-      }
-    }else{
-      Serial.println("personal_fm failed");
-      delay(1000);
+bool getMusicAndUrl()
+{
+  while (true) {
+    if (getMusic() && getMusicUrl()) {
+      return true;
     }
+    delay(5000);
+  }
+  return false;
+}
+
+bool getMusic()
+{
+  HTTPClient http;
+  sprintf(requestUrl, "%s/personal_fm?t=%d", url_prefix, random(1, 100000));
+  http.collectHeaders(headerkeys, headerkeyssize);
+  http.begin(requestUrl);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Cookie", cookie);
+  int httpCode = http.GET();
+  String payload = http.getString();
+  Serial.print("HTTP Status:");
+  Serial.println(httpCode);
+  Serial.print("HTTP payload:");
+  Serial.println(payload);
+  http.end();
+  if (httpCode == 200)
+  {
+    Serial.println("Get music success");
+    const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(8) + 370;
+    DynamicJsonBuffer jsonBuffer(bufferSize);
+    JsonObject &root = jsonBuffer.parseObject(payload);
+    if (!root.success())
+    {
+      Serial.println("JSON parsing failed!");
+    }
+    else
+    {
+      musicId = root["data"][0]["id"];
+      Serial.print("id:");
+      Serial.println(musicId);
+      char musicIdStr[32];
+      sprintf(musicIdStr, "ID:%d", musicId);
+      return true;
+    }
+  }
+  else
+  {
+    Serial.println("personal_fm failed");
+    return false;
   }
 }
 
-
-bool getMusicUrl(){
-  while (true){
-    HTTPClient http;
-    sprintf(requestUrl, "%s/song/url?br=320000&id=%d", url_prefix, musicId);
-    http.collectHeaders(headerkeys, headerkeyssize);
-    http.begin(requestUrl);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Cookie", cookie);
-    int httpCode = http.GET();
-    String payload = http.getString();
-    Serial.print("HTTP Status:");
-    Serial.println(httpCode);
-    Serial.print("HTTP payload:");
-    Serial.println(payload);
-    http.end();
-    if(httpCode == 200){
-      Serial.println("Get url success");
-      const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(8) + 370;
-      DynamicJsonBuffer jsonBuffer(bufferSize);
-      JsonObject& root = jsonBuffer.parseObject(payload);
-      if (!root.success()) {
-        Serial.println("JSON parsing failed!");
-        delay(1000);
-      } else {
-        strcpy(musicUrl, root["data"][0]["url"]);
-        Serial.print("url:");
-        Serial.println(musicUrl);
-        return true;
-      }
-    }else{
-      Serial.println("song/url failed");
-      delay(1000);
-      continue;
+bool getMusicUrl()
+{
+  HTTPClient http;
+  sprintf(requestUrl, "%s/song/url?br=320000&id=%d", url_prefix, musicId);
+  http.collectHeaders(headerkeys, headerkeyssize);
+  http.begin(requestUrl);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Cookie", cookie);
+  int httpCode = http.GET();
+  String payload = http.getString();
+  Serial.print("HTTP Status:");
+  Serial.println(httpCode);
+  Serial.print("HTTP payload:");
+  Serial.println(payload);
+  http.end();
+  if (httpCode == 200)
+  {
+    Serial.println("Get url success");
+    const size_t bufferSize = JSON_OBJECT_SIZE(2) + JSON_OBJECT_SIZE(3) + JSON_OBJECT_SIZE(5) + JSON_OBJECT_SIZE(8) + 370;
+    DynamicJsonBuffer jsonBuffer(bufferSize);
+    JsonObject &root = jsonBuffer.parseObject(payload);
+    if (!root.success())
+    {
+      Serial.println("JSON parsing failed!");
     }
+    else
+    {
+      strcpy(musicUrl, root["data"][0]["url"]);
+      Serial.print("url:");
+      Serial.println(musicUrl);
+      return true;
+    }
+  }
+  else
+  {
+    Serial.println("song/url failed");
+    return false;
   }
 }
 
@@ -258,11 +275,16 @@ bool playMusic(){
 bool next() {
   out->SetGain(0.01);
   out->stop();
-  getMusic() && getMusicUrl() && playMusic();
+  getMusicAndUrl() && playMusic();
 }
 
- 
 void loop() {
+  static int lastms = 0;
+  if (millis()-lastms > 1000) {
+    lastms = millis();
+    Serial.printf("Running for %d ms...\n", lastms);
+    Serial.flush();
+  }
   if (buttonClicked == 1) {
     Serial.println("Next needed.");
     next();
