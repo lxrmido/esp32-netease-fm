@@ -166,9 +166,14 @@ bool login(){
 
 bool getMusicAndUrl()
 {
+  static int failedTimes = 0;
   while (true) {
     if (getMusic() && getMusicUrl()) {
+      failedTimes = 0;
       return true;
+    }
+    if (failedTimes ++ > 10) {
+      ESP.restart();  
     }
     delay(5000);
   }
