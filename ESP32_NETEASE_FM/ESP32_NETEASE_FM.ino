@@ -15,13 +15,12 @@ const char* wifi_password = WIFI_PASSWORD;
 const char* login_phone = LOGIN_PHONE;
 const char* login_password =  LOGIN_PASSWORD;
 
-const int nextButton = 13;
-const int pauseButton = 35;
+const int nextButton = 35;
+const int pauseButton = 33;
 const int likeButton = 34;
 
 bool playing = false;
 
-char token[256];
 int musicId;
 char musicUrl[1024];
 char requestUrl[256];
@@ -157,9 +156,6 @@ bool login(){
         delay(1000);
         continue;
       }
-      strcpy(token, root["token"]);
-      Serial.print("Token:");
-      Serial.println(token);
       return true;
     }else{
       Serial.println("login failed");
@@ -182,7 +178,7 @@ bool getMusicAndUrl()
 bool getMusic()
 {
   HTTPClient http;
-  sprintf(requestUrl, "%s/personal_fm?t=%d", url_prefix, random(1, 100000));
+  sprintf(requestUrl, "%s/personal_fm?t=%d", url_prefix, millis());
   http.collectHeaders(headerkeys, headerkeyssize);
   http.begin(requestUrl);
   http.addHeader("Content-Type", "application/json");
@@ -224,7 +220,7 @@ bool getMusic()
 bool getMusicUrl()
 {
   HTTPClient http;
-  sprintf(requestUrl, "%s/song/url?br=320000&id=%d", url_prefix, musicId);
+  sprintf(requestUrl, "%s/song/url?br=128000&id=%d", url_prefix, musicId);
   http.collectHeaders(headerkeys, headerkeyssize);
   http.begin(requestUrl);
   http.addHeader("Content-Type", "application/json");
@@ -279,12 +275,6 @@ bool next() {
 }
 
 void loop() {
-  static int lastms = 0;
-  if (millis()-lastms > 1000) {
-    lastms = millis();
-    Serial.printf("Running for %d ms...\n", lastms);
-    Serial.flush();
-  }
   if (buttonClicked == 1) {
     Serial.println("Next needed.");
     next();
@@ -303,14 +293,16 @@ void loop() {
     like();
     buttonClicked = 0;
   }else {
-    if (mp3->isRunning()) {
-      if (!mp3->loop()) {
-        mp3->stop();
-        next();
-      } 
-    } else {
-      Serial.printf("MP3 done\n");
-      delay(1000);
+    if (playing) {
+      if (mp3->isRunning()) {
+        if (!mp3->loop()) {
+          mp3->stop();
+          next();
+        } 
+      } else {
+        Serial.printf("MP3 done\n");
+        delay(1000);
+      }
     }
   }
 }
